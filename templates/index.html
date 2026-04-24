@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Captioning AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #2a2a3a;
+      --accent: #7c6aff;
+      --accent2: #ff6b9d;
+      --text: #e8e8f0;
+      --muted: #666680;
+      --success: #4ade80;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,106,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    header {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 3rem 1rem 1.5rem;
+    }
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+    header p {
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 900px;
+      padding: 1rem 1.5rem 4rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 640px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-family: 'Space Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+    /* Upload area */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    #drop-zone:hover, #drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(124,106,255,0.05);
+    }
+    #drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    #drop-zone .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+    }
+    #preview-img {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      position: absolute;
+      inset: 0;
+    }
+    #file-input { display: none; }
+    /* Controls */
+    .control-group { margin-bottom: 1rem; }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-family: 'Space Mono', monospace;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      appearance: none;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+    button#generate-btn {
+      width: 100%;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      margin-top: 0.5rem;
+    }
+    button#generate-btn:hover { opacity: 0.9; }
+    button#generate-btn:active { transform: scale(0.98); }
+    button#generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Result card */
+    #result-card { grid-column: 1 / -1; }
+    #result-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #result-text {
+      font-size: 1.3rem;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    #result-text.placeholder { color: var(--muted); font-size: 0.9rem; font-weight: 400; }
+    .badge {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(124,106,255,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(124,106,255,0.3);
+      margin-right: 0.4rem;
+    }
+    .meta { margin-top: 0.75rem; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-text { color: #f87171; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Image Captioning AI</h1>
+    <p>CNN encoder + LSTM / Transformer decoder · Flickr8k trained</p>
+  </header>
+
+  <div class="container">
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-title">01 · Upload Image</div>
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="icon">🖼️</div>
+        <div class="hint">Click or drag an image here</div>
+        <img id="preview-img" alt="preview" />
+      </div>
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <!-- Options -->
+    <div class="card">
+      <div class="card-title">02 · Configure</div>
+      <div class="control-group">
+        <label for="model-select">Model Architecture</label>
+        <select id="model-select">
+          <option value="lstm">CNN + LSTM</option>
+          <option value="transformer">CNN + Transformer</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="method-select">Decoding Strategy</label>
+        <select id="method-select">
+          <option value="greedy">Greedy Search (fast)</option>
+          <option value="beam">Beam Search (better quality)</option>
+        </select>
+      </div>
+      <button id="generate-btn" onclick="generateCaption()">Generate Caption</button>
+    </div>
+
+    <!-- Result -->
+    <div class="card" id="result-card">
+      <div class="card-title">03 · Generated Caption</div>
+      <div id="result-box">
+        <span id="result-text" class="placeholder">Upload an image and click Generate</span>
+      </div>
+      <div class="meta" id="result-meta" style="display:none"></div>
+    </div>
+  </div>
+
+  <script>
+    let selectedFile = null;
+
+    // Drag-and-drop
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = document.getElementById('preview-img');
+        img.src = ev.target.result;
+        img.style.display = 'block';
+        document.querySelector('#drop-zone .icon').style.display = 'none';
+        document.querySelector('#drop-zone .hint').style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function generateCaption() {
+      if (!selectedFile) { alert('Please upload an image first.'); return; }
+      const btn = document.getElementById('generate-btn');
+      const resultBox = document.getElementById('result-box');
+      const resultText = document.getElementById('result-text');
+      const meta = document.getElementById('result-meta');
+
+      btn.disabled = true;
+      resultBox.innerHTML = '<div class="spinner"></div>';
+      meta.style.display = 'none';
+
+      const form = new FormData();
+      form.append('image', selectedFile);
+      form.append('model', document.getElementById('model-select').value);
+      form.append('method', document.getElementById('method-select').value);
+
+      try {
+        const res = await fetch('/caption', { method: 'POST', body: form });
+        const data = await res.json();
+
+        if (data.error && !data.caption) {
+          resultBox.innerHTML = `<span class="error-text">⚠️ ${data.error}</span>`;
+        } else {
+          resultBox.innerHTML = `<span id="result-text">${data.caption || data.error}</span>`;
+          meta.innerHTML = `
+            <span class="badge">${data.model?.toUpperCase()}</span>
+            <span class="badge">${data.method?.toUpperCase()}</span>
+          `;
+          meta.style.display = 'block';
+        }
+      } catch (e) {
+        resultBox.innerHTML = '<span class="error-text">⚠️ Network error. Is the server running?</span>';
+      }
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
